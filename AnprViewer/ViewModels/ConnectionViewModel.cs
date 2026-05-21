@@ -26,6 +26,7 @@ public sealed partial class ConnectionViewModel : ObservableObject
     [ObservableProperty] private bool   _encrypt;
     [ObservableProperty] private bool   _trustServerCertificate = true;
     [ObservableProperty] private bool   _rememberSettings = true;
+    [ObservableProperty] private bool   _autoConnect = true;
 
     // Password se enlaza desde code-behind por seguridad (PasswordBox no expone Password como DP)
     public string Password { get; set; } = "";
@@ -59,6 +60,7 @@ public sealed partial class ConnectionViewModel : ObservableObject
         IntegratedSecurity     = s.IntegratedSecurity;
         Encrypt                = s.Encrypt;
         TrustServerCertificate = s.TrustServerCertificate;
+        AutoConnect            = s.AutoConnect;
     }
 
     private ConnectionSettings BuildSettings() => new()
@@ -72,6 +74,7 @@ public sealed partial class ConnectionViewModel : ObservableObject
         Password               = Password,
         Encrypt                = Encrypt,
         TrustServerCertificate = TrustServerCertificate,
+        AutoConnect            = AutoConnect,
     };
 
     [RelayCommand(CanExecute = nameof(CanExecute))]
@@ -138,9 +141,6 @@ public sealed partial class ConnectionViewModel : ObservableObject
         && !string.IsNullOrWhiteSpace(Database)
         && (IntegratedSecurity || !string.IsNullOrWhiteSpace(Username));
 
-    // CommunityToolkit.Mvvm regenera RaiseCanExecuteChanged cuando cambian
-    // las propiedades observables que se referencian en CanExecute. Por si acaso,
-    // notificamos manualmente desde el setter:
     partial void OnIsBusyChanged(bool value)             => NotifyAll();
     partial void OnServerChanged(string value)           => NotifyAll();
     partial void OnDatabaseChanged(string value)         => NotifyAll();

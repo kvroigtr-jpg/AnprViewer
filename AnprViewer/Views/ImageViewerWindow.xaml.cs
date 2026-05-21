@@ -1,10 +1,9 @@
 using System;
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
-using AnprViewer.Models;
 using AnprViewer.ViewModels;
 using Microsoft.Win32;
 
@@ -12,18 +11,85 @@ namespace AnprViewer.Views;
 
 public partial class ImageViewerWindow : Window
 {
+    private ImageViewerViewModel? _vm;
+
     public ImageViewerWindow()
     {
         InitializeComponent();
+
         Loaded += (_, _) =>
         {
+            // Sincroniza la etiqueta de zoom con el ZoomableImage
             Zoomer.ZoomChanged += z => ZoomLabel.Text = $"{Math.Round(z * 100)}%";
+
+            // Engancha el VM una vez cargado el visual tree
+            HookViewModel();
+            PushCurrentImage();
         };
+
+        DataContextChanged += (_, _) =>
+        {
+            HookViewModel();
+            PushCurrentImage();
+        };
+    }
+
+    private void HookViewModel()
+    {
+        if (_vm is not null)
+            _vm.PropertyChanged -= OnVmPropertyChanged;
+
+        _vm = DataContext as ImageViewerViewModel;
+
+        if (_vm is not null)
+            _vm.PropertyChanged += OnVmPropertyChanged;
+    }
+
+    private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ImageViewerViewModel.CurrentImage))
+            PushCurrentImage();
+    }
+
+    /// <summary>Empuja explícitamente la imagen actual al ZoomableImage y resetea zoom.</summary>
+    private void PushCurrentImage()
+    {
+        if (_vm is null) return;
+        Zoomer.Source = _vm.CurrentImage;
+        Zoomer.ResetZoom();
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
 
-    // ── Botones del visor ──────────────────────────────────────
+    // ── Click en thumb del panel lateral ──
+    private void OnThumbClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement fe) return;
+        if (fe.Tag is not string key) return;
+        if (DataContext is not ImageViewerViewModel vm) return;
+
+        vm.SelectKeyCommand.Execute(key);
+    }
+
+    /// <summary>Click en placa coche/moto: selecciona la imagen de matrícula correspondiente.</summary>
+    private void OnPlateClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement fe) return;
+        if (DataContext is not ImageViewerViewModel vm) return;
+        var which = fe.Tag as string;
+
+        string? key = which switch
+        {
+            "Car"  => vm.IsHistorico ? "Leida"   : "Entrada",
+            "Moto" => vm.IsHistorico ? "MatTras" : "PresTrasera",
+            _      => null,
+        };
+
+        if (key is null) return;
+        vm.SelectKeyCommand.Execute(key);
+    }
+
+    // ── HUD inferior ────────────────────────────────────────────
     private void OnZoomIn(object sender, RoutedEventArgs e)  => Zoomer.ZoomBy(1.25);
     private void OnZoomOut(object sender, RoutedEventArgs e) => Zoomer.ZoomBy(0.8);
     private void OnFit(object sender, RoutedEventArgs e)     => Zoomer.ResetZoom();
@@ -32,49 +98,23 @@ public partial class ImageViewerWindow : Window
     private void OnPrevKind(object sender, RoutedEventArgs e)
     {
         if (DataContext is ImageViewerViewModel vm)
-            _ = vm.PrevKindCommand.ExecuteAsync(null);
+            vm.PrevKindCommand.Execute(null);
     }
+
     private void OnNextKind(object sender, RoutedEventArgs e)
     {
         if (DataContext is ImageViewerViewModel vm)
-            _ = vm.NextKindCommand.ExecuteAsync(null);
+            vm.NextKindCommand.Execute(null);
     }
 
-    private async void OnStripItemClick(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is FrameworkElement fe && fe.Tag is ImageKind kind
-            && DataContext is ImageViewerViewModel vm)
-        {
-            await vm.SelectKindCommand.ExecuteAsync(kind);
-        }
-    }
-
-    // ── Atajos de teclado ──────────────────────────────────────
-    private async void OnKeyDown(object sender, KeyEventArgs e)
-    {
-        if (DataContext is not ImageViewerViewModel vm) return;
-
-        switch (e.Key)
-        {
-            case Key.Escape: Close(); break;
-            case Key.Add: case Key.OemPlus:   Zoomer.ZoomBy(1.25); break;
-            case Key.Subtract: case Key.OemMinus: Zoomer.ZoomBy(0.8); break;
-            case Key.D0: case Key.NumPad0:    Zoomer.ResetZoom(); break;
-            case Key.R: Zoomer.Rotate90(); break;
-            case Key.Left:  await vm.PrevKindCommand.ExecuteAsync(null); break;
-            case Key.Right: await vm.NextKindCommand.ExecuteAsync(null); break;
-            case Key.D: OnSave(this, new RoutedEventArgs()); break;
-        }
-    }
-
-    // ── Guardar a disco ────────────────────────────────────────
     private void OnSave(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ImageViewerViewModel vm || vm.CurrentImage is null) return;
 
+        var plate = (vm.PlateText ?? "img").Replace(" ", "").Replace("/", "_");
         var dlg = new SaveFileDialog
         {
-            FileName = $"{vm.Record.MatriculaLeida ?? "img"}_{vm.CurrentKind}.jpg",
+            FileName = $"{plate}_{vm.CurrentKey}.jpg",
             Filter   = "JPEG (*.jpg)|*.jpg|PNG (*.png)|*.png",
         };
         if (dlg.ShowDialog() != true) return;
@@ -83,8 +123,8 @@ public partial class ImageViewerWindow : Window
         {
             BitmapEncoder encoder = dlg.FilterIndex == 2
                 ? new PngBitmapEncoder()
-                : new JpegBitmapEncoder { QualityLevel = 92 };
-            encoder.Frames.Add(BitmapFrame.Create((BitmapSource)vm.CurrentImage));
+                : new JpegBitmapEncoder { QualityLevel = 95 };
+            encoder.Frames.Add(BitmapFrame.Create(vm.CurrentImage));
             using var fs = File.Create(dlg.FileName);
             encoder.Save(fs);
         }
@@ -92,6 +132,22 @@ public partial class ImageViewerWindow : Window
         {
             MessageBox.Show($"No se pudo guardar la imagen:\n{ex.Message}", "Guardar",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    // ── Atajos de teclado ───────────────────────────────────────
+    private void OnKeyDown(object sender, KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case Key.Escape:                       Close(); break;
+            case Key.Add: case Key.OemPlus:        Zoomer.ZoomBy(1.25); break;
+            case Key.Subtract: case Key.OemMinus:  Zoomer.ZoomBy(0.8); break;
+            case Key.D0: case Key.NumPad0:         Zoomer.ResetZoom(); break;
+            case Key.R:                            Zoomer.Rotate90(); break;
+            case Key.Left:                         OnPrevKind(this, new RoutedEventArgs()); break;
+            case Key.Right:                        OnNextKind(this, new RoutedEventArgs()); break;
+            case Key.D:                            OnSave(this, new RoutedEventArgs()); break;
         }
     }
 }

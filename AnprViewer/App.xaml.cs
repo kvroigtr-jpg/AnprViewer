@@ -16,10 +16,11 @@ public partial class App : Application
     public static IImageCacheService       ImageCache      { get; private set; } = null!;
     public static IConnectionSettingsStore ConnectionStore { get; private set; } = null!;
     public static IListPdfExportService    ListPdfExport   { get; private set; } = null!;
-    public static IPdfExportService PdfExport { get; private set; } = null!;
-    public static IRecordPdfExportService RecordPdfExport { get; private set; } = null!;
+    public static IRecordPdfExportService  RecordPdfExport { get; private set; } = null!;
+    public static IHistoricoSearchService  HistoricoSearch { get; private set; } = null!;
+    public static IPresenteImageService    PresenteImages  { get; private set; } = null!;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
         QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
@@ -31,45 +32,74 @@ public partial class App : Application
 
         try
         {
-            // =========================
+            // TEMA
+            ThemeService.LoadAndApply();
+
             // SERVICIOS BASE
-            // =========================
             ConnectionStore = new ConnectionSettingsStore();
             Db              = new SqlServerDatabaseService();
             ImageCache      = new ImageCacheService(Db, capacity: 200);
+            PresenteImages  = new PresenteImageService(Db);
 
-            // =========================
-            // PDF (LISTADO)
-            // =========================
+            // PDF
             ListPdfExport   = new ListPdfExportService();
-            PdfExport = new PdfExportService(Db);
-            RecordPdfExport  = new RecordPdfExportService(Db);
+            RecordPdfExport = new RecordPdfExportService(Db, PresenteImages);
 
-            // =========================
-            // TEMA
-            // =========================
+            // BÚSQUEDA OPTIMIZADA (HISTORICO + PRESENTES)
+            HistoricoSearch = new HistoricoSearchService(Db);
 
-            // =========================
-            // LOGIN WINDOW
-            // =========================
-            var connVm  = new ConnectionViewModel(Db, ConnectionStore);
-            var connWin = new ConnectionWindow { DataContext = connVm };
+            // AUTO-CONEXIÓN
+            string? autoErr  = null;
+            bool    connected = false;
+            var     saved     = ConnectionStore.Load();
 
-            var ok = connWin.ShowDialog() == true;
-            if (!ok)
+            if (saved is { AutoConnect: true }
+                && !string.IsNullOrWhiteSpace(saved.Server)
+                && !string.IsNullOrWhiteSpace(saved.Database)
+                && (saved.IntegratedSecurity || !string.IsNullOrWhiteSpace(saved.Username)))
             {
-                Shutdown();
-                return;
+                try
+                {
+                    if (await Db.TestConnectionAsync(saved))
+                    {
+                        Db.Configure(saved);
+                        connected = true;
+                    }
+                    else
+                    {
+                        autoErr = "La validación de la BD no pasó.";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    autoErr = ex.Message;
+                }
             }
 
-            // =========================
-            // MAIN WINDOW
-            // =========================
-            var mainVm = new MainViewModel(Db, ImageCache, ListPdfExport, RecordPdfExport);
+            // LOGIN si no hay auto-conexión
+            if (!connected)
+            {
+                var connVm = new ConnectionViewModel(Db, ConnectionStore);
+                if (autoErr is not null)
+                {
+                    connVm.StatusKind    = "err";
+                    connVm.StatusMessage = "Auto-conexión fallida: " + autoErr;
+                }
+                var connWin = new ConnectionWindow { DataContext = connVm };
+
+                if (connWin.ShowDialog() != true)
+                {
+                    Shutdown();
+                    return;
+                }
+            }
+
+            // MAIN
+            var mainVm  = new MainViewModel(Db, HistoricoSearch, ImageCache, PresenteImages,
+                                            ListPdfExport, RecordPdfExport);
             var mainWin = new MainWindow { DataContext = mainVm };
 
             MainWindow = mainWin;
-
             ShutdownMode = ShutdownMode.OnMainWindowClose;
 
             mainWin.Show();
@@ -84,14 +114,8 @@ public partial class App : Application
 
     private static async Task SafeInitialLoadAsync(MainViewModel vm)
     {
-        try
-        {
-            await vm.LoadAsync();
-        }
-        catch (Exception ex)
-        {
-            ShowError("Error al cargar los datos iniciales", ex);
-        }
+        try { await vm.LoadAsync(); }
+        catch (Exception ex) { ShowError("Error al cargar los datos iniciales", ex); }
     }
 
     private static void OnDispatcherException(object sender, DispatcherUnhandledExceptionEventArgs ex)
@@ -112,7 +136,6 @@ public partial class App : Application
         {
             ShowError("Excepcion no observada en tarea async", ex.Exception);
         }));
-
         ex.SetObserved();
     }
 
@@ -131,28 +154,23 @@ public partial class App : Application
 
         var current = ex;
         int level = 0;
-
         while (current != null)
         {
             sb.Append("[Nivel ").Append(level).Append("] ")
               .AppendLine(current.GetType().FullName);
-
             sb.AppendLine(current.Message);
             sb.AppendLine();
-
             if (!string.IsNullOrWhiteSpace(current.StackTrace))
             {
                 sb.AppendLine("Stack trace:");
                 sb.AppendLine(current.StackTrace);
                 sb.AppendLine();
             }
-
             current = current.InnerException;
             level++;
         }
 
         var full = sb.ToString();
-
         try { Clipboard.SetText(full); } catch { }
 
         MessageBox.Show(

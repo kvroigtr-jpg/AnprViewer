@@ -56,6 +56,7 @@ public sealed class ConnectionSettingsStore : IConnectionSettingsStore
                 Encrypt = settings.Encrypt,
                 ConnectTimeoutSeconds = settings.ConnectTimeoutSeconds,
                 CommandTimeoutSeconds = settings.CommandTimeoutSeconds,
+                AutoConnect = settings.AutoConnect,
             };
             File.WriteAllText(FilePath, JsonSerializer.Serialize(safe,
                 new JsonSerializerOptions { WriteIndented = true }));

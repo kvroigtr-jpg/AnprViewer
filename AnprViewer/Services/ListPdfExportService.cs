@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Threading;
 using System.Threading.Tasks;
 using AnprViewer.Models;
 using QuestPDF.Fluent;
@@ -11,216 +10,236 @@ using QuestPDF.Infrastructure;
 namespace AnprViewer.Services;
 
 /// <summary>
-/// Genera un PDF profesional con el listado de registros en formato tabla.
-/// Usa QuestPDF (Community License). Apaisado A4 para que entren todas las columnas.
+/// PDF profesional del listado actual (tabla apaisada).
+/// Soporta listado de HISTORICO y de PRESENTES.
 /// </summary>
 public sealed class ListPdfExportService : IListPdfExportService
 {
-    // Cache del logo embebido para no leerlo del recurso WPF en cada exportación
     private static byte[]? _logoBytes;
     private static readonly object _logoLock = new();
 
-    public Task ExportListAsync(
+    // ─────────────────────────── HISTORICO ───────────────────────────
+    public async Task ExportListAsync(
         IReadOnlyList<HistoricoRecord> records,
         QueryFilters? filters,
-        string outputPath,
-        CancellationToken ct = default)
+        string filePath)
     {
-        // QuestPDF es síncrono: pool para no bloquear UI
-        return Task.Run(() =>
+        await Task.Run(() =>
         {
-            ct.ThrowIfCancellationRequested();
-
             Document.Create(container =>
             {
                 container.Page(page =>
                 {
                     page.Size(PageSizes.A4.Landscape());
-                    page.Margin(1.5f, Unit.Centimetre);
+                    page.Margin(1.2f, Unit.Centimetre);
                     page.PageColor(Colors.White);
-                    page.DefaultTextStyle(t => t.FontSize(9).FontFamily("Segoe UI").FontColor("#0F141B"));
+                    page.DefaultTextStyle(t => t.FontSize(9)
+                        .FontFamily("Segoe UI").FontColor("#0F141B"));
 
-                    page.Header().Element(c => ComposeHeader(c, records.Count, filters));
-                    page.Content().Element(c => ComposeContent(c, records));
-                    page.Footer().Element(ComposeFooter);
+                    page.Header().Element(c => ComposeListHeader(c,
+                        "INFORME · HISTÓRICO DE LECTURAS",
+                        records.Count,
+                        filters));
+                    page.Content().Element(c => ComposeHistoricoTable(c, records));
+                    page.Footer().Element(c => ComposeFooter(c));
                 });
-            })
-            .GeneratePdf(outputPath);
-        }, ct);
+            }).GeneratePdf(filePath);
+        });
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // HEADER
-    // ─────────────────────────────────────────────────────────────────
-    private static void ComposeHeader(IContainer c, int total, QueryFilters? f)
+    // ─────────────────────────── PRESENTES ───────────────────────────
+    public async Task ExportPresentesListAsync(
+        IReadOnlyList<PresenteRecord> records,
+        QueryFilters? filters,
+        string filePath)
     {
-        c.PaddingBottom(10).BorderBottom(1).BorderColor("#222B38").Row(row =>
+        await Task.Run(() =>
         {
-            // Logo
+            Document.Create(container =>
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4.Landscape());
+                    page.Margin(1.2f, Unit.Centimetre);
+                    page.PageColor(Colors.White);
+                    page.DefaultTextStyle(t => t.FontSize(9)
+                        .FontFamily("Segoe UI").FontColor("#0F141B"));
+
+                    page.Header().Element(c => ComposeListHeader(c,
+                        "INFORME · VEHÍCULOS PRESENTES",
+                        records.Count,
+                        filters));
+                    page.Content().Element(c => ComposePresentesTable(c, records));
+                    page.Footer().Element(c => ComposeFooter(c));
+                });
+            }).GeneratePdf(filePath);
+        });
+    }
+
+    // ────────────────────────── header común ─────────────────────────
+    private static void ComposeListHeader(IContainer c, string title, int total, QueryFilters? f)
+    {
+        c.PaddingBottom(8).BorderBottom(1).BorderColor("#222B38").Row(row =>
+        {
             var logo = TryGetLogo();
             if (logo is { Length: > 0 })
-            {
                 row.ConstantItem(110).AlignMiddle().Image(logo).FitArea();
-            }
 
-            // Título central
             row.RelativeItem().Column(col =>
             {
-                col.Item().Text("INFORME DE MATRÍCULAS")
+                col.Item().Text(title)
                     .FontSize(9).FontColor("#6B7787").LetterSpacing(0.2f);
-                col.Item().Text("Listado de registros HISTORICO")
-                    .FontSize(16).Bold().FontColor("#0F141B");
-                col.Item().Text($"{total} {(total == 1 ? "registro" : "registros")} · " +
-                                $"Generado {DateTime.Now:dd/MM/yyyy HH:mm:ss}")
-                    .FontSize(9).FontColor("#6B7787");
-            });
+                col.Item().Text($"{total:N0} registros · generado {DateTime.Now:dd/MM/yyyy HH:mm:ss}")
+                    .FontSize(14).Bold().FontColor("#0F141B");
 
-            // Resumen de filtros aplicados
-            row.ConstantItem(220).AlignRight().Column(col =>
-            {
-                col.Item().AlignRight().Text("FILTROS APLICADOS")
-                    .FontSize(8).FontColor("#6B7787").LetterSpacing(0.15f);
-                col.Item().PaddingTop(2).AlignRight()
-                    .Text(BuildFilterSummary(f))
-                    .FontSize(8).FontColor("#475063");
+                if (f is not null)
+                {
+                    var filterParts = new List<string>();
+                    if (!string.IsNullOrWhiteSpace(f.Plate))    filterParts.Add($"Matrícula='{f.Plate}'");
+                    if (f.From.HasValue)                         filterParts.Add($"Desde={f.From:dd/MM/yyyy HH:mm:ss}");
+                    if (f.To.HasValue)                           filterParts.Add($"Hasta={f.To:dd/MM/yyyy HH:mm:ss}");
+                    if (f.TipoTerminal.HasValue)                 filterParts.Add($"Movimiento={MovimientoLabel(f.TipoTerminal.Value)}");
+                    if (!string.IsNullOrWhiteSpace(f.Terminal)) filterParts.Add($"Terminal='{f.Terminal}'");
+                    if (f.MinConf > 0)                          filterParts.Add($"Fiab≥{f.MinConf:0}%");
+
+                    if (filterParts.Count > 0)
+                        col.Item().PaddingTop(2).Text("Filtros: " + string.Join(" · ", filterParts))
+                            .FontSize(8).FontColor("#6B7787");
+                }
             });
         });
     }
 
-    private static string BuildFilterSummary(QueryFilters? f)
+    private static string MovimientoLabel(int tipo) => tipo switch
     {
-        if (f is null) return "Sin filtros";
-        var parts = new List<string>();
-        if (!string.IsNullOrWhiteSpace(f.Plate))    parts.Add($"Matrícula: {f.Plate}");
-        if (f.From.HasValue)                        parts.Add($"Desde: {f.From:dd/MM/yyyy}");
-        if (f.To.HasValue)                          parts.Add($"Hasta: {f.To:dd/MM/yyyy}");
-        if (!string.IsNullOrWhiteSpace(f.Type))     parts.Add($"Movimiento: {f.Type}");
-        if (!string.IsNullOrWhiteSpace(f.Terminal)) parts.Add($"Terminal: {f.Terminal}");
-        if (f.MinConf > 0)                          parts.Add($"Fiab. ≥ {f.MinConf:0}%");
-        return parts.Count == 0 ? "Sin filtros" : string.Join(" · ", parts);
-    }
+        0 => "Entrada",
+        1 => "Salida",
+        2 => "Paso",
+        _ => tipo.ToString(),
+    };
 
-    // ─────────────────────────────────────────────────────────────────
-    // CONTENIDO · TABLA
-    // ─────────────────────────────────────────────────────────────────
-    private static void ComposeContent(IContainer c, IReadOnlyList<HistoricoRecord> records)
+    // ──────────────────────── tabla HISTORICO ────────────────────────
+    private static void ComposeHistoricoTable(IContainer c, IReadOnlyList<HistoricoRecord> rows)
     {
-        c.PaddingVertical(12).Table(t =>
+        c.PaddingVertical(8).Table(t =>
         {
             t.ColumnsDefinition(cd =>
             {
-                cd.ConstantColumn(38);     // #
-                cd.ConstantColumn(85);     // Matrícula
-                cd.ConstantColumn(45);     // Fiab.
-                cd.ConstantColumn(115);    // Fecha/Hora
-                cd.ConstantColumn(85);     // Movimiento
-                cd.RelativeColumn();       // Terminal (variable)
-                cd.ConstantColumn(85);     // Tipo terminal
-                cd.ConstantColumn(80);     // Tarjeta
-                cd.ConstantColumn(45);     // Imgs
+                cd.ConstantColumn(50);   // #
+                cd.ConstantColumn(80);   // Matrícula
+                cd.ConstantColumn(45);   // Fiab
+                cd.ConstantColumn(105);  // Fecha
+                cd.ConstantColumn(80);   // Movimiento
+                cd.RelativeColumn();     // Terminal
+                cd.RelativeColumn();     // Tarjeta
+                cd.ConstantColumn(60);   // Imgs
             });
 
-            // Cabecera (se repite en cada página)
             t.Header(h =>
             {
-                h.Cell().Element(HeaderCell).Text("#");
-                h.Cell().Element(HeaderCell).Text("Matrícula");
-                h.Cell().Element(HeaderCell).AlignRight().Text("Fiab.");
-                h.Cell().Element(HeaderCell).Text("Fecha / Hora");
-                h.Cell().Element(HeaderCell).Text("Movimiento");
-                h.Cell().Element(HeaderCell).Text("Terminal");
-                h.Cell().Element(HeaderCell).Text("Tipo");
-                h.Cell().Element(HeaderCell).Text("Tarjeta");
-                h.Cell().Element(HeaderCell).AlignCenter().Text("Imgs");
+                Th(h.Cell(), "#");
+                Th(h.Cell(), "Matrícula");
+                Th(h.Cell(), "Fiab.");
+                Th(h.Cell(), "Fecha/Hora");
+                Th(h.Cell(), "Movimiento");
+                Th(h.Cell(), "Terminal");
+                Th(h.Cell(), "Tarjeta");
+                Th(h.Cell(), "Imgs");
             });
 
-            // Filas con cebra
-            for (int i = 0; i < records.Count; i++)
+            int idx = 0;
+            foreach (var r in rows)
             {
-                var rec = records[i];
-                var zebra = i % 2 == 0
-                ? Colors.White
-                : Color.FromRGB(247, 249, 251);
+                var bg = (idx++ % 2 == 0) ? "#FFFFFF" : "#F8F9FB";
 
-                t.Cell().Element(c => Cell(c, zebra))
-                    .Text(rec.NumeroLinea.ToString("D6"))
-                    .FontFamily("Consolas").FontSize(8).FontColor("#6B7787");
-
-                t.Cell().Element(c => Cell(c, zebra))
-                    .Text(rec.MatriculaLeida ?? "—")
-                    .FontFamily("Consolas").FontSize(10).Bold().FontColor("#0F141B");
-
-                t.Cell().Element(c => Cell(c, zebra)).AlignRight()
-                    .Text((rec.FiabilidadMatricula ?? 0).ToString("0.0") + "%")
-                    .FontFamily("Consolas").FontSize(9)
-                    .FontColor(ConfidenceColor(rec.FiabilidadMatricula));
-
-                t.Cell().Element(c => Cell(c, zebra))
-                    .Text(rec.FHGeneracion.ToString("dd/MM/yyyy HH:mm:ss"))
-                    .FontFamily("Consolas").FontSize(9);
-
-                t.Cell().Element(c => Cell(c, zebra))
-                    .Text(rec.TipoMovimientoDesc ?? "—").FontSize(9);
-
-                t.Cell().Element(c => Cell(c, zebra))
-                    .Text(rec.DescTerminal ?? "—").FontSize(9);
-
-                t.Cell().Element(c => Cell(c, zebra))
-                    .Text(rec.TipoTerminalDesc ?? "—").FontSize(9);
-
-                t.Cell().Element(c => Cell(c, zebra))
-                    .Text(rec.DescTipoTarjeta ?? "—").FontSize(9);
-
-                t.Cell().Element(c => Cell(c, zebra)).AlignCenter()
-                    .Text(CountImages(rec).ToString())
-                    .FontFamily("Consolas").FontSize(9).FontColor("#5CF5D3");
+                Td(t.Cell(), bg, r.NumeroLinea.ToString("D6"));
+                Td(t.Cell(), bg, r.MatriculaLeida ?? "—", bold: true);
+                Td(t.Cell(), bg, $"{(r.FiabilidadMatricula ?? 0):0}%");
+                Td(t.Cell(), bg, r.FHGeneracion.ToString("dd/MM/yyyy HH:mm:ss"));
+                Td(t.Cell(), bg, r.TipoMovimientoDesc ?? "—");
+                Td(t.Cell(), bg, r.DescTerminal ?? "—");
+                Td(t.Cell(), bg, r.DescTipoTarjeta ?? r.DescClaseTarjeta ?? "—");
+                Td(t.Cell(), bg, ImagesFlag(r));
             }
-
-            // Estilos
-            static IContainer HeaderCell(IContainer x)
-                => x.Background("#0F141B")
-                    .PaddingVertical(6).PaddingHorizontal(6)
-                    .DefaultTextStyle(s => s.FontSize(8).Bold().FontColor("#E6EDF5").LetterSpacing(0.1f));
-
-            static IContainer Cell(IContainer x, string bg)
-                => x.Background(bg)
-                    .PaddingVertical(5).PaddingHorizontal(6)
-                    .BorderBottom(0.3f).BorderColor("#E1E6EC");
         });
     }
 
-    private static int CountImages(HistoricoRecord r)
+    // ──────────────────────── tabla PRESENTES ────────────────────────
+    private static void ComposePresentesTable(IContainer c, IReadOnlyList<PresenteRecord> rows)
     {
-        int n = 0;
-        if (r.HasImgLeida)   n++;
-        if (r.HasImgFrontal) n++;
-        if (r.HasImgTrasera) n++;
-        if (r.HasImgFacial)  n++;
-        if (r.HasImgMatTras) n++;
-        return n;
+        c.PaddingVertical(8).Table(t =>
+        {
+            t.ColumnsDefinition(cd =>
+            {
+                cd.ConstantColumn(80);   // Matrícula
+                cd.ConstantColumn(45);   // Fiab
+                cd.ConstantColumn(105);  // Fecha entrada
+                cd.RelativeColumn();     // Terminal
+                cd.RelativeColumn();     // Tarjeta
+                cd.ConstantColumn(80);   // Id Tarjeta
+                cd.ConstantColumn(50);   // Imgs
+            });
+
+            t.Header(h =>
+            {
+                Th(h.Cell(), "Matrícula");
+                Th(h.Cell(), "Fiab.");
+                Th(h.Cell(), "Entrada");
+                Th(h.Cell(), "Terminal");
+                Th(h.Cell(), "Tarjeta");
+                Th(h.Cell(), "Id Tarjeta");
+                Th(h.Cell(), "Imgs");
+            });
+
+            int idx = 0;
+            foreach (var r in rows)
+            {
+                var bg = (idx++ % 2 == 0) ? "#FFFFFF" : "#F8F9FB";
+
+                Td(t.Cell(), bg, r.MatriculaEntrada ?? "—", bold: true);
+                Td(t.Cell(), bg, $"{(r.FiabilidadMatricula ?? 0):0}%");
+                Td(t.Cell(), bg, r.FechaEntrada.ToString("dd/MM/yyyy HH:mm:ss"));
+                Td(t.Cell(), bg, r.DescTerminalEntrada ?? "—");
+                Td(t.Cell(), bg, r.DescTipoTarjeta ?? r.DescClaseTarjeta ?? "—");
+                Td(t.Cell(), bg, r.IdTarjeta ?? "—");
+                Td(t.Cell(), bg, (r.HasImgEntrada ? "E" : "") + (r.HasImgTrasera ? "T" : ""));
+            }
+        });
     }
 
-    private static string ConfidenceColor(float? c)
+    private static string ImagesFlag(HistoricoRecord r)
     {
-        var v = c ?? 0;
-        if (v >= 90) return "#1F8A3B";
-        if (v >= 75) return "#9A7B0F";
-        if (v >= 50) return "#A65A00";
-        return "#B33A3A";
+        var s = "";
+        if (r.HasImgLeida)   s += "M";
+        if (r.HasImgFrontal) s += "F";
+        if (r.HasImgTrasera) s += "T";
+        if (r.HasImgFacial)  s += "C";
+        if (r.HasImgMatTras) s += "X";
+        return s.Length == 0 ? "—" : s;
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // FOOTER
-    // ─────────────────────────────────────────────────────────────────
+    // ────────────────────────── helpers tabla ────────────────────────
+    private static void Th(IContainer cell, string text)
+    {
+        cell.Background("#0F141B").Padding(4)
+            .Text(text).FontSize(8).Bold().FontColor("#FFFFFF").LetterSpacing(0.3f);
+    }
+
+    private static void Td(IContainer cell, string bg, string text, bool bold = false)
+    {
+        var styled = cell.Background(bg).Padding(3);
+        if (bold)
+            styled.Text(text).FontSize(9).Bold().FontFamily("Consolas").FontColor("#0F141B");
+        else
+            styled.Text(text).FontSize(8).FontFamily("Consolas").FontColor("#0F141B");
+    }
+
     private static void ComposeFooter(IContainer c)
     {
         c.BorderTop(1).BorderColor("#E1E6EC").PaddingTop(6).Row(row =>
         {
-            row.RelativeItem().Text(text =>
-            {
-                text.Span("Gestor Matrículas Extendida").FontSize(8).FontColor("#6B7787");
-                text.Span($" · Generado {DateTime.Now:dd/MM/yyyy HH:mm}").FontSize(8).FontColor("#AAB4C2");
-            });
+            row.RelativeItem().Text("Gestor Matrículas Extendido · CAME Parkare")
+                .FontSize(8).FontColor("#6B7787");
             row.RelativeItem().AlignRight().Text(text =>
             {
                 text.Span("Página ").FontSize(8).FontColor("#6B7787");
@@ -231,9 +250,6 @@ public sealed class ListPdfExportService : IListPdfExportService
         });
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // LOGO
-    // ─────────────────────────────────────────────────────────────────
     private static byte[]? TryGetLogo()
     {
         if (_logoBytes is not null) return _logoBytes;
@@ -242,7 +258,7 @@ public sealed class ListPdfExportService : IListPdfExportService
             if (_logoBytes is not null) return _logoBytes;
             try
             {
-                var uri = new Uri("pack://application:,,,/Resources/Images/logo.png", UriKind.Absolute);
+                var uri = new Uri("pack://application:,,,/Resources/Images/logo_1.png", UriKind.Absolute);
                 var info = System.Windows.Application.GetResourceStream(uri);
                 if (info?.Stream is null) return null;
                 using var ms = new MemoryStream();
@@ -250,10 +266,7 @@ public sealed class ListPdfExportService : IListPdfExportService
                 _logoBytes = ms.ToArray();
                 return _logoBytes;
             }
-            catch
-            {
-                return null;
-            }
+            catch { return null; }
         }
     }
 }

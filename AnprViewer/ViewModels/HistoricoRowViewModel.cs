@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
@@ -10,12 +12,12 @@ namespace AnprViewer.ViewModels;
 
 /// <summary>
 /// Wrapper de <see cref="HistoricoRecord"/> para binding en el DataGrid.
-/// Expone propiedades formateadas y carga perezosa de la miniatura primaria.
+/// Expone propiedades formateadas y carga perezosa de las miniaturas (4 en línea).
 /// </summary>
 public sealed partial class HistoricoRowViewModel : ObservableObject
 {
     private readonly IImageCacheService _cache;
-    private bool _thumbRequested;
+    private bool _thumbsRequested;
 
     public HistoricoRecord Record { get; }
 
@@ -46,26 +48,44 @@ public sealed partial class HistoricoRowViewModel : ObservableObject
         Record.HasImgLeida || Record.HasImgFrontal || Record.HasImgTrasera ||
         Record.HasImgFacial || Record.HasImgMatTras;
 
-    // ── Miniatura primaria con lazy load ───────────────────────
-    [ObservableProperty] private BitmapSource? _thumbnail;
+    // ── 4 Thumbnails en línea con lazy load ────────────────────
+    [ObservableProperty] private BitmapSource? _thumbLeida;
+    [ObservableProperty] private BitmapSource? _thumbFrontal;
+    [ObservableProperty] private BitmapSource? _thumbTrasera;
+    [ObservableProperty] private BitmapSource? _thumbFacial;
     [ObservableProperty] private bool _thumbnailLoading;
     [ObservableProperty] private bool _thumbnailFailed;
 
     /// <summary>Llamar cuando la fila entra en el viewport (visibilidad real).</summary>
-    public async Task EnsureThumbnailAsync(CancellationToken ct = default)
+    public async Task EnsureThumbnailsAsync(CancellationToken ct = default)
     {
-        if (_thumbRequested || !HasAnyImage) return;
-        _thumbRequested = true;
-
-        var kind = PickPreferredKind();
-        if (kind is null) return;
+        if (_thumbsRequested || !HasAnyImage) return;
+        _thumbsRequested = true;
 
         ThumbnailLoading = true;
         try
         {
-            var bmp = await _cache.GetAsync(NumeroLinea, kind.Value, ct);
-            Thumbnail = bmp;
-            ThumbnailFailed = bmp is null;
+            var pending = new List<(ImageKind Kind, Task<BitmapSource?> Task)>();
+            if (Record.HasImgLeida)   pending.Add((ImageKind.Leida,   _cache.GetAsync(NumeroLinea, ImageKind.Leida,   ct)));
+            if (Record.HasImgFrontal) pending.Add((ImageKind.Frontal, _cache.GetAsync(NumeroLinea, ImageKind.Frontal, ct)));
+            if (Record.HasImgTrasera) pending.Add((ImageKind.Trasera, _cache.GetAsync(NumeroLinea, ImageKind.Trasera, ct)));
+            if (Record.HasImgFacial)  pending.Add((ImageKind.Facial,  _cache.GetAsync(NumeroLinea, ImageKind.Facial,  ct)));
+
+            await Task.WhenAll(pending.Select(p => p.Task));
+
+            foreach (var (kind, task) in pending)
+            {
+                var bmp = task.Result;
+                switch (kind)
+                {
+                    case ImageKind.Leida:   ThumbLeida   = bmp; break;
+                    case ImageKind.Frontal: ThumbFrontal = bmp; break;
+                    case ImageKind.Trasera: ThumbTrasera = bmp; break;
+                    case ImageKind.Facial:  ThumbFacial  = bmp; break;
+                }
+            }
+
+            ThumbnailFailed = pending.Count > 0 && pending.All(p => p.Task.Result is null);
         }
         catch
         {
@@ -75,16 +95,6 @@ public sealed partial class HistoricoRowViewModel : ObservableObject
         {
             ThumbnailLoading = false;
         }
-    }
-
-    private ImageKind? PickPreferredKind()
-    {
-        if (Record.HasImgFrontal)  return ImageKind.Frontal;
-        if (Record.HasImgLeida)    return ImageKind.Leida;
-        if (Record.HasImgTrasera)  return ImageKind.Trasera;
-        if (Record.HasImgFacial)   return ImageKind.Facial;
-        if (Record.HasImgMatTras)  return ImageKind.MatTras;
-        return null;
     }
 
     private static string GetMovementClass(string mov)

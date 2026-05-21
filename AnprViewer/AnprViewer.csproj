@@ -4,11 +4,11 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <RootNamespace>AnprViewer</RootNamespace>
-    <AssemblyName>GestorMatriculasExtendida</AssemblyName>
+    <AssemblyName>GestorMatriculasExtendido</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <AssemblyTitle>Gestor Matrículas Extendida</AssemblyTitle>
+    <AssemblyTitle>Gestor Matrículas Extendido</AssemblyTitle>
     <AssemblyDescription>Gestor de matrículas con histórico extendido sobre SQL Server</AssemblyDescription>
     <Version>1.0.0</Version>
     <LangVersion>latest</LangVersion>
@@ -42,7 +42,8 @@
 
   <!-- Recursos visuales embebidos como Resource (accesibles vía pack URI) -->
   <ItemGroup>
-    <Resource Include="Resources\Images\logo.png" />
+    <Resource Include="Resources\Images\logo_1.png" />
+    <Resource Include="Resources\Images\logo_2.png" />
     <Resource Include="Resources\Images\app.ico" />
   </ItemGroup>
 

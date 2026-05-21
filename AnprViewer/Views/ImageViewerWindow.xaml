@@ -4,16 +4,17 @@
         xmlns:conv="clr-namespace:AnprViewer.Converters"
         xmlns:ctrl="clr-namespace:AnprViewer.Controls"
         xmlns:vm="clr-namespace:AnprViewer.ViewModels"
-        Title="Gestor Matrículas Extendida - Detalle del registro"
+        Title="Gestor Matrículas Extendido - Detalle del registro"
         Icon="pack://application:,,,/Resources/Images/app.ico"
-        Width="1280" Height="800"
-        MinWidth="900" MinHeight="600"
+        Width="1380" Height="820"
+        MinWidth="1000" MinHeight="640"
+        Background="{DynamicResource Bg0}"
         WindowStartupLocation="CenterOwner"
         KeyDown="OnKeyDown">
 
     <Window.Resources>
-        <conv:BoolToVisibilityConverter   x:Key="BoolVis"/>
-        <conv:ImageKindToLabelConverter   x:Key="KindLabel"/>
+        <conv:BoolToVisibilityConverter x:Key="BoolVis"/>
+        <conv:NullToVisibilityConverter x:Key="NullVis"/>
     </Window.Resources>
 
     <Grid>
@@ -22,25 +23,35 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="{StaticResource Bg1}"
-                BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1">
+        <!-- HEADER -->
+        <Border Grid.Row="0" Background="{DynamicResource Bg1}"
+                BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1">
             <Grid Margin="18,12">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Record.MatriculaLeida}"
-                               Foreground="{StaticResource Accent}"
+                    <TextBlock Text="{Binding PlateText}"
+                               Foreground="{DynamicResource Accent}"
                                FontFamily="{StaticResource FontMono}"
                                FontSize="22" FontWeight="SemiBold"/>
+
                     <TextBlock Margin="20,0,0,0" VerticalAlignment="Center"
-                               Foreground="{StaticResource Text1}"
-                               FontFamily="{StaticResource FontMono}" FontSize="12">
-                        <Run Text="{Binding Record.FHGeneracion, StringFormat='dd/MM/yyyy HH:mm:ss', Mode=OneWay}"/>
-                    </TextBlock>
-                    <TextBlock Margin="20,0,0,0" VerticalAlignment="Center"
-                               Foreground="{StaticResource Text2}"
-                               FontFamily="{StaticResource FontMono}" FontSize="12">
-                        <Run Text="{Binding Record.TipoMovimientoDesc, Mode=OneWay}"/>
+                               Foreground="{DynamicResource Text1}"
+                               FontFamily="{StaticResource FontMono}" FontSize="12"
+                               Visibility="{Binding IsHistorico, Converter={StaticResource BoolVis}}">
+                        <Run Text="{Binding HistoricoRecord.FHGeneracion, StringFormat='dd/MM/yyyy HH:mm:ss', Mode=OneWay}"/>
                         <Run Text=" · "/>
-                        <Run Text="{Binding Record.DescTerminal, Mode=OneWay}"/>
+                        <Run Text="{Binding HistoricoRecord.DescClaseTarjeta, Mode=OneWay}"/>
+                        <Run Text=" · "/>
+                        <Run Text="{Binding HistoricoRecord.DescTerminal, Mode=OneWay}"/>
+                    </TextBlock>
+
+                    <TextBlock Margin="20,0,0,0" VerticalAlignment="Center"
+                               Foreground="{DynamicResource Text1}"
+                               FontFamily="{StaticResource FontMono}" FontSize="12"
+                               Visibility="{Binding IsPresente, Converter={StaticResource BoolVis}}">
+                        <Run Text="Entrada: "/>
+                        <Run Text="{Binding PresenteRecord.FechaEntrada, StringFormat='dd/MM/yyyy HH:mm:ss', Mode=OneWay}"/>
+                        <Run Text=" · "/>
+                        <Run Text="{Binding PresenteRecord.DescTerminalEntrada, Mode=OneWay}"/>
                     </TextBlock>
                 </StackPanel>
 
@@ -52,187 +63,296 @@
 
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="140"/>
+                <ColumnDefinition Width="240"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="300"/>
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" Background="{StaticResource Bg1}"
-                    BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0">
-                <ItemsControl ItemsSource="{Binding AvailableKinds}" Padding="10">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Margin="0,0,0,8" CornerRadius="4"
-                                    Background="{StaticResource Bg2}"
-                                    BorderThickness="2"
+            <!-- PANEL LATERAL: selectores (placas + thumbs) -->
+            <Border Grid.Column="0" Background="{DynamicResource Bg1}"
+                    BorderBrush="{DynamicResource Line}" BorderThickness="0,0,1,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="14,14">
+                    <StackPanel>
+
+                        <!-- Placa COCHE -->
+                        <StackPanel Visibility="{Binding HasCarPlate, Converter={StaticResource BoolVis}, FallbackValue=Visible}">
+                            <TextBlock Text="MATRÍCULA" Style="{StaticResource FieldLabel}"/>
+                            <Border Background="{DynamicResource Bg2}"
+                                    BorderBrush="{DynamicResource Line}" BorderThickness="1"
+                                    CornerRadius="6" Padding="14" Margin="0,0,0,14"
                                     Cursor="Hand"
-                                    MouseLeftButtonDown="OnStripItemClick"
-                                    Tag="{Binding}">
-                                <Border.BorderBrush>
-                                    <MultiBinding Converter="{conv:EqualsToAccentBrushConverter}">
-                                        <Binding/>
-                                        <Binding Path="DataContext.CurrentKind" RelativeSource="{RelativeSource AncestorType=Window}"/>
-                                    </MultiBinding>
-                                </Border.BorderBrush>
-                                <Grid Height="90">
-                                    <TextBlock Text="{Binding Converter={StaticResource KindLabel}}"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Bottom"
-                                               Margin="0,0,0,6"
-                                               Foreground="{StaticResource Text1}"
-                                               FontFamily="{StaticResource FontMono}"
-                                               FontSize="10"
-                                               TextOptions.TextRenderingMode="ClearType"/>
-                                </Grid>
+                                    Tag="Car" MouseLeftButtonDown="OnPlateClick">
+                                <ctrl:PlateBadge Plate="{Binding PlateText}" MinHeight="56"/>
                             </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                        </StackPanel>
+
+                        <!-- Placa MOTO (solo si hay matrícula trasera) -->
+                        <StackPanel Visibility="{Binding HasMotoPlate, Converter={StaticResource BoolVis}}">
+                            <TextBlock Text="MATRÍCULA MOTO" Style="{StaticResource FieldLabel}"/>
+                            <Border Background="{DynamicResource Bg2}"
+                                    BorderBrush="{DynamicResource Line}" BorderThickness="1"
+                                    CornerRadius="6" Padding="14" Margin="0,0,0,14"
+                                    Cursor="Hand"
+                                    Tag="Moto" MouseLeftButtonDown="OnPlateClick">
+                                <ctrl:PlateBadgeMoto Plate="{Binding PlateText}"
+                                                     MinHeight="120"/>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Thumbs HISTORICO -->
+                        <StackPanel Visibility="{Binding IsHistorico, Converter={StaticResource BoolVis}}">
+
+                            <StackPanel Visibility="{Binding ThumbFrontal, Converter={StaticResource NullVis}, ConverterParameter=Invert}">
+                                <TextBlock Text="FRONTAL" Style="{StaticResource FieldLabel}"/>
+                                <Border Background="{DynamicResource Bg2}"
+                                        BorderBrush="{DynamicResource Line}" BorderThickness="1"
+                                        CornerRadius="6" Margin="0,0,0,12"
+                                        Height="110" Cursor="Hand"
+                                        Tag="Frontal" MouseLeftButtonDown="OnThumbClick"
+                                        ClipToBounds="True">
+                                    <Image Source="{Binding ThumbFrontal}"
+                                           Stretch="UniformToFill"
+                                           RenderOptions.BitmapScalingMode="HighQuality"/>
+                                </Border>
+                            </StackPanel>
+
+                            <StackPanel Visibility="{Binding ThumbTrasera, Converter={StaticResource NullVis}, ConverterParameter=Invert}">
+                                <TextBlock Text="TRASERA" Style="{StaticResource FieldLabel}"/>
+                                <Border Background="{DynamicResource Bg2}"
+                                        BorderBrush="{DynamicResource Line}" BorderThickness="1"
+                                        CornerRadius="6" Margin="0,0,0,12"
+                                        Height="110" Cursor="Hand"
+                                        Tag="Trasera" MouseLeftButtonDown="OnThumbClick"
+                                        ClipToBounds="True">
+                                    <Image Source="{Binding ThumbTrasera}"
+                                           Stretch="UniformToFill"
+                                           RenderOptions.BitmapScalingMode="HighQuality"/>
+                                </Border>
+                            </StackPanel>
+
+                            <StackPanel Visibility="{Binding ThumbFacial, Converter={StaticResource NullVis}, ConverterParameter=Invert}">
+                                <TextBlock Text="FACIAL" Style="{StaticResource FieldLabel}"/>
+                                <Border Background="{DynamicResource Bg2}"
+                                        BorderBrush="{DynamicResource Line}" BorderThickness="1"
+                                        CornerRadius="6" Margin="0,0,0,12"
+                                        Height="110" Cursor="Hand"
+                                        Tag="Facial" MouseLeftButtonDown="OnThumbClick"
+                                        ClipToBounds="True">
+                                    <Image Source="{Binding ThumbFacial}"
+                                           Stretch="UniformToFill"
+                                           RenderOptions.BitmapScalingMode="HighQuality"/>
+                                </Border>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
             </Border>
 
-            <Grid Grid.Column="1">
-                <ctrl:ZoomableImage x:Name="Zoomer"
-                                    Source="{Binding CurrentImage}"/>
+            <!-- ═══════ VISOR CENTRAL — Grid con 2 filas garantiza HUD visible ═══════ -->
+            <Grid Grid.Column="1" Background="{DynamicResource Bg0}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-                <Border Background="#80000000"
-                        Visibility="{Binding IsLoading, Converter={StaticResource BoolVis}}">
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <ProgressBar IsIndeterminate="True" Width="120" Height="3"
-                                     Background="{StaticResource Bg2}"
-                                     Foreground="{StaticResource Accent}"
-                                     BorderThickness="0"/>
-                        <TextBlock Text="Cargando imagen…" Margin="0,12,0,0"
-                                   Foreground="{StaticResource Text2}"
+                <!-- Imagen ampliable (fila *) -->
+                <Grid Grid.Row="0" ClipToBounds="True">
+                    <ctrl:ZoomableImage x:Name="Zoomer"/>
+
+                    <!-- Etiqueta de la imagen activa -->
+                    <Border HorizontalAlignment="Left" VerticalAlignment="Top"
+                            Margin="14" Padding="10,5"
+                            Background="#CC0F141B"
+                            BorderBrush="{DynamicResource Line}" BorderThickness="1"
+                            CornerRadius="4"
+                            IsHitTestVisible="False">
+                        <TextBlock Text="{Binding CurrentKindLabel}"
+                                   Foreground="#FFFFFFFF"
                                    FontFamily="{StaticResource FontMono}" FontSize="11"
-                                   HorizontalAlignment="Center"/>
-                    </StackPanel>
-                </Border>
+                                   FontWeight="SemiBold"/>
+                    </Border>
 
-                <Border HorizontalAlignment="Center" VerticalAlignment="Bottom"
-                        Margin="0,0,0,18" Padding="6"
-                        Background="#F00F141B"
-                        BorderBrush="{StaticResource Line}"
-                        BorderThickness="1"
-                        CornerRadius="6">
-                    <StackPanel Orientation="Horizontal">
+                    <!-- Overlay de carga -->
+                    <Border Background="#80000000"
+                            Visibility="{Binding IsLoading, Converter={StaticResource BoolVis}}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <ProgressBar IsIndeterminate="True" Width="120" Height="3"
+                                         Background="{DynamicResource Bg2}"
+                                         Foreground="{DynamicResource Accent}"
+                                         BorderThickness="0"/>
+                            <TextBlock Text="Cargando imágenes…" Margin="0,12,0,0"
+                                       Foreground="{DynamicResource Text2}"
+                                       FontFamily="{StaticResource FontMono}" FontSize="11"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- ═══════ HUD INFERIOR (fila Auto: SIEMPRE visible) ═══════ -->
+                <Border Grid.Row="1"
+                        Background="{DynamicResource Bg1}"
+                        BorderBrush="{DynamicResource Line}"
+                        BorderThickness="0,1,0,0"
+                        Padding="0,8">
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Center">
                         <Button Style="{StaticResource IconBtn}" Width="36" Height="32"
-                                Click="OnZoomOut" Content="−" ToolTip="Alejar (−)"/>
+                                Click="OnZoomOut" Content="−" ToolTip="Alejar / Minimizar (−)"/>
                         <Button Style="{StaticResource IconBtn}" Width="36" Height="32" Margin="4,0,0,0"
-                                Click="OnFit" Content="⊡" ToolTip="Ajustar (0)"/>
+                                Click="OnFit" Content="⊡" ToolTip="Centrar / Ajustar (0)"/>
                         <Button Style="{StaticResource IconBtn}" Width="36" Height="32" Margin="4,0,0,0"
-                                Click="OnZoomIn" Content="+" ToolTip="Acercar (+)"/>
-                        <Border Width="64" Margin="4,0" BorderBrush="{StaticResource Line}" BorderThickness="1,0">
+                                Click="OnZoomIn" Content="+" ToolTip="Acercar / Ampliar (+)"/>
+
+                        <Border Width="64" Margin="6,0"
+                                BorderBrush="{DynamicResource Line}" BorderThickness="1,0">
                             <TextBlock x:Name="ZoomLabel" Text="100%"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{StaticResource Text1}"
+                                       Foreground="{DynamicResource Text1}"
                                        FontFamily="{StaticResource FontMono}" FontSize="11"/>
                         </Border>
+
                         <Button Style="{StaticResource IconBtn}" Width="36" Height="32"
-                                Click="OnRotate" Content="↻" ToolTip="Rotar (R)"/>
-                        <Button Style="{StaticResource IconBtn}" Width="36" Height="32" Margin="4,0,0,0"
+                                Click="OnRotate" Content="↻" ToolTip="Rotar 90° (R)"/>
+
+                        <Border Width="1" Height="22" Margin="8,0"
+                                Background="{DynamicResource Line}"/>
+
+                        <Button Style="{StaticResource IconBtn}" Width="36" Height="32"
                                 Click="OnPrevKind" Content="‹" ToolTip="Imagen anterior (←)"/>
                         <Button Style="{StaticResource IconBtn}" Width="36" Height="32" Margin="4,0,0,0"
                                 Click="OnNextKind" Content="›" ToolTip="Imagen siguiente (→)"/>
-                        <Button Style="{StaticResource IconBtn}" Width="36" Height="32" Margin="4,0,0,0"
-                                Click="OnSave" Content="↓" ToolTip="Guardar (D)"/>
+
+                        <Border Width="1" Height="22" Margin="8,0"
+                                Background="{DynamicResource Line}"/>
+
+                        <Button Style="{StaticResource IconBtn}" Width="36" Height="32"
+                                Click="OnSave" Content="↓" ToolTip="Descargar imagen (D)"/>
                     </StackPanel>
                 </Border>
             </Grid>
 
-            <Border Grid.Column="2" Background="{StaticResource Bg1}"
-                    BorderBrush="{StaticResource Line}" BorderThickness="1,0,0,0">
+            <!-- PANEL DERECHO: datos -->
+            <Border Grid.Column="2" Background="{DynamicResource Bg1}"
+                    BorderBrush="{DynamicResource Line}" BorderThickness="1,0,0,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="14">
                     <StackPanel>
-                        <TextBlock Text="REGISTRO" Style="{StaticResource FieldLabel}"
-                                   FontSize="10" Margin="0,0,0,8"/>
-                        <Grid Margin="0,0,0,18">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="NumeroLinea" Foreground="{StaticResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
-                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Record.NumeroLinea}" Foreground="{StaticResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="CodigoAparc." Foreground="{StaticResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Record.CodigoAparcamiento}" Foreground="{StaticResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="NumeroTerminal" Foreground="{StaticResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
-                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Record.NumeroTerminal}" Foreground="{StaticResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="FHGeneracion" Foreground="{StaticResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
-                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Record.FHGeneracion, StringFormat='dd/MM/yyyy HH:mm:ss', Mode=OneWay}" Foreground="{StaticResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
-                        </Grid>
 
-                        <TextBlock Text="MATRÍCULA" Style="{StaticResource FieldLabel}" FontSize="10" Margin="0,0,0,8"/>
-                        <Grid Margin="0,0,0,18">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Leída" Foreground="{StaticResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
-                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Record.MatriculaLeida}" Foreground="{StaticResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Operación" Foreground="{StaticResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Record.MatriculaOperacion}" Foreground="{StaticResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Fiabilidad" Foreground="{StaticResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
-                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Record.FiabilidadMatricula, StringFormat='0.0', Mode=OneWay}" Foreground="{StaticResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Nº fallos" Foreground="{StaticResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
-                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Record.NumeroDeFallos}" Foreground="{StaticResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
-                        </Grid>
+                        <!-- HISTORICO -->
+                        <StackPanel Visibility="{Binding IsHistorico, Converter={StaticResource BoolVis}}">
+                            <TextBlock Text="REGISTRO" Style="{StaticResource FieldLabel}" FontSize="10" Margin="0,0,0,8"/>
+                            <Grid Margin="0,0,0,18">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="NumeroLinea" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding HistoricoRecord.NumeroLinea}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="CodigoAparc." Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding HistoricoRecord.CodigoAparcamiento}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="NumeroTerminal" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding HistoricoRecord.NumeroTerminal}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="FHGeneracion" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding HistoricoRecord.FHGeneracion, StringFormat='dd/MM/yyyy HH:mm:ss', Mode=OneWay}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                            </Grid>
 
-                        <TextBlock Text="MOVIMIENTO" Style="{StaticResource FieldLabel}" FontSize="10" Margin="0,0,0,8"/>
-                        <Grid Margin="0,0,0,18">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Tipo" Foreground="{StaticResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
-                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Record.TipoMovimientoDesc}" Foreground="{StaticResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Terminal" Foreground="{StaticResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Record.DescTerminal}" Foreground="{StaticResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Tipo terminal" Foreground="{StaticResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
-                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Record.TipoTerminalDesc}" Foreground="{StaticResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
-                        </Grid>
+                            <TextBlock Text="MATRÍCULA" Style="{StaticResource FieldLabel}" FontSize="10" Margin="0,0,0,8"/>
+                            <Grid Margin="0,0,0,18">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Leída" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding HistoricoRecord.MatriculaLeida}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Operación" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding HistoricoRecord.MatriculaOperacion}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Fiabilidad" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding HistoricoRecord.FiabilidadMatricula, StringFormat='0.0', Mode=OneWay}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Nº fallos" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding HistoricoRecord.NumeroDeFallos}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                            </Grid>
 
-                        <TextBlock Text="TARJETA" Style="{StaticResource FieldLabel}" FontSize="10" Margin="0,0,0,8"/>
-                        <Grid Margin="0,0,0,18">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Clase" Foreground="{StaticResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
-                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Record.DescClaseTarjeta}" Foreground="{StaticResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Tipo" Foreground="{StaticResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Record.DescTipoTarjeta}" Foreground="{StaticResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Código" Foreground="{StaticResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
-                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Record.CodigoTarjeta}" Foreground="{StaticResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
-                        </Grid>
+                            <TextBlock Text="MOVIMIENTO" Style="{StaticResource FieldLabel}" FontSize="10" Margin="0,0,0,8"/>
+                            <Grid Margin="0,0,0,18">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Tipo" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding HistoricoRecord.TipoMovimientoDesc}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Terminal" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding HistoricoRecord.DescTerminal}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Tipo terminal" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding HistoricoRecord.TipoTerminalDesc}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                            </Grid>
+
+                            <TextBlock Text="TARJETA" Style="{StaticResource FieldLabel}" FontSize="10" Margin="0,0,0,8"/>
+                            <Grid Margin="0,0,0,18">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Clase" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding HistoricoRecord.DescClaseTarjeta}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Tipo" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding HistoricoRecord.DescTipoTarjeta}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Código" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding HistoricoRecord.CodigoTarjeta}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- PRESENTES -->
+                        <StackPanel Visibility="{Binding IsPresente, Converter={StaticResource BoolVis}}">
+                            <TextBlock Text="VEHÍCULO PRESENTE" Style="{StaticResource FieldLabel}" FontSize="10" Margin="0,0,0,8"/>
+                            <Grid Margin="0,0,0,18">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Matrícula" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding PresenteRecord.MatriculaEntrada}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Fecha entrada" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding PresenteRecord.FechaEntrada, StringFormat='dd/MM/yyyy HH:mm:ss', Mode=OneWay}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Fiabilidad" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding PresenteRecord.FiabilidadMatricula, StringFormat='0.0', Mode=OneWay}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Aparcamiento" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding PresenteRecord.CodigoAparcamiento}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                            </Grid>
+
+                            <TextBlock Text="TERMINAL" Style="{StaticResource FieldLabel}" FontSize="10" Margin="0,0,0,8"/>
+                            <Grid Margin="0,0,0,18">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Entrada" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding PresenteRecord.DescTerminalEntrada}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Nº terminal" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding PresenteRecord.TerminalEntrada}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                            </Grid>
+
+                            <TextBlock Text="TARJETA" Style="{StaticResource FieldLabel}" FontSize="10" Margin="0,0,0,8"/>
+                            <Grid Margin="0,0,0,18">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Id Tarjeta" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding PresenteRecord.IdTarjeta}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Clase" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding PresenteRecord.DescClaseTarjeta}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Tipo" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding PresenteRecord.DescTipoTarjeta}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Código" Foreground="{DynamicResource Text2}" FontFamily="{StaticResource FontMono}" FontSize="11" Margin="0,3"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding PresenteRecord.CodigoTarjeta}" Foreground="{DynamicResource Text0}" FontFamily="{StaticResource FontMono}" Margin="0,3"/>
+                            </Grid>
+                        </StackPanel>
 
                         <TextBlock Text="{Binding StatusText}"
-                                   Foreground="{StaticResource Text3}"
+                                   Foreground="{DynamicResource Text3}"
                                    FontFamily="{StaticResource FontMono}" FontSize="10"
                                    TextWrapping="Wrap" Margin="0,8,0,0"/>
                     </StackPanel>

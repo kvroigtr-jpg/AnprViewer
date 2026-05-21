@@ -37,14 +37,14 @@ public sealed class ZoomableImage : Border
 
     public double CurrentZoom => _scale.ScaleX;
 
-    /// <summary>Se dispara cuando cambia el zoom (para refrescar el indicador en UI).</summary>
     public event Action<double>? ZoomChanged;
 
     public ZoomableImage()
     {
         ClipToBounds = true;
-        Background   = (Brush)Application.Current.Resources["Bg0"];
-        Cursor       = Cursors.Hand;
+        // ⚠️ DynamicResource para que reaccione al cambio de tema global
+        SetResourceReference(BackgroundProperty, "Bg0");
+        Cursor = Cursors.Hand;
 
         _image = new Image
         {
@@ -57,7 +57,6 @@ public sealed class ZoomableImage : Border
         RenderOptions.SetBitmapScalingMode(_image, BitmapScalingMode.HighQuality);
         Child = _image;
 
-        // Compone las transformaciones: escala → rotación → traslación
         var tg = new TransformGroup();
         tg.Children.Add(_scale);
         tg.Children.Add(_rotate);
@@ -65,7 +64,7 @@ public sealed class ZoomableImage : Border
         _image.RenderTransform = tg;
         _image.RenderTransformOrigin = new Point(0.5, 0.5);
 
-        MouseWheel        += OnMouseWheel;
+        MouseWheel          += OnMouseWheel;
         MouseLeftButtonDown += OnMouseDown;
         MouseLeftButtonUp   += OnMouseUp;
         MouseMove           += OnMouseMove;
@@ -111,7 +110,6 @@ public sealed class ZoomableImage : Border
 
         if (center is { } c)
         {
-            // Reposiciona la traslación para que el punto bajo el cursor permanezca fijo
             var rect = new Rect(0, 0, ActualWidth, ActualHeight);
             var ox = c.X - rect.Width / 2;
             var oy = c.Y - rect.Height / 2;

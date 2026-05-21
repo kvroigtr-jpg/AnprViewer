@@ -1,0 +1,75 @@
+<UserControl x:Class="AnprViewer.Controls.PlateBadgeMoto"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root"
+             SnapsToDevicePixels="True"
+             UseLayoutRounding="True">
+    <!--
+        Formato matrícula española de MOTO / CICLOMOTOR:
+        ┌──┬───────┐
+        │ E│ NNNN  │   ← banda azul UE vertical a la izquierda (ocupa toda la altura)
+        │UE├───────┤   ← 4 números arriba
+        │  │ LLL   │   ← 3 letras abajo
+        └──┴───────┘
+    -->
+    <Border CornerRadius="6"
+            BorderBrush="#FF111111"
+            BorderThickness="2"
+            Background="#FFF5F5F0"
+            MinWidth="140" MinHeight="120">
+        <Border.Effect>
+            <DropShadowEffect ShadowDepth="0" BlurRadius="6"
+                              Color="#000000" Opacity="0.35"/>
+        </Border.Effect>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="28"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Banda azul UE vertical (toda la altura de la placa) -->
+            <Border Grid.Column="0"
+                    CornerRadius="4,0,0,4"
+                    Background="#FF003399">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBlock Text="★"
+                               Foreground="#FFFFCC00"
+                               FontSize="11"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,2"/>
+                    <TextBlock Text="E"
+                               Foreground="White"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Bloque de texto: 4 números arriba + 3 letras abajo -->
+            <Grid Grid.Column="1" Margin="6,4,6,6">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- 4 números -->
+                <Viewbox Grid.Row="0" Stretch="Uniform" Margin="0,0,0,2">
+                    <TextBlock Text="{Binding NumberPart, ElementName=Root}"
+                               FontFamily="Consolas, Cascadia Mono, monospace"
+                               FontWeight="Bold"
+                               Foreground="#FF111111"
+                               TextOptions.TextRenderingMode="ClearType"/>
+                </Viewbox>
+
+                <!-- 3 letras -->
+                <Viewbox Grid.Row="1" Stretch="Uniform" Margin="0,2,0,0">
+                    <TextBlock Text="{Binding LetterPart, ElementName=Root}"
+                               FontFamily="Consolas, Cascadia Mono, monospace"
+                               FontWeight="Bold"
+                               Foreground="#FF111111"
+                               TextOptions.TextRenderingMode="ClearType"/>
+                </Viewbox>
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

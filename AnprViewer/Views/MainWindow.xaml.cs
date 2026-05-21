@@ -1,7 +1,8 @@
-using System.Linq;
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using AnprViewer.Services;
 using AnprViewer.ViewModels;
 
 namespace AnprViewer.Views;
@@ -13,70 +14,95 @@ public partial class MainWindow : Window
         InitializeComponent();
     }
 
-    /// <summary>
-    /// Lazy load real: cuando el contenedor de la miniatura se carga
-    /// (= la fila ha entrado en el viewport virtualizado), pedimos la imagen.
-    /// El propio DataGrid virtualiza con `Recycling`, así que sólo se
-    /// ejecuta para las filas realmente visibles.
-    /// </summary>
-    private async void OnThumbnailLoaded(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement fe && fe.DataContext is HistoricoRowViewModel row)
-        {
-            await row.EnsureThumbnailAsync();
-        }
-    }
+    // ────────── tema ──────────
+    private void OnThemeDarkClick(object sender, RoutedEventArgs e)  => ThemeService.Apply(ThemeService.Mode.Dark);
+    private void OnThemeLightClick(object sender, RoutedEventArgs e) => ThemeService.Apply(ThemeService.Mode.Light);
 
+    // ─────── HISTORICO row handlers ───────
     private void OnRowDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        // Evitar disparar el detalle al hacer doble click sobre cabeceras / scrollbars
-        if (e.OriginalSource is DependencyObject src && FindAncestor<DataGridRow>(src) is null)
-            return;
-
-        OpenViewerForCurrentSelection();
+        if (DataContext is not MainViewModel vm) return;
+        if (vm.SelectedRow is null) return;
+        OpenHistoricoViewer(vm.SelectedRow);
     }
 
     private void OnOpenViewerClick(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is HistoricoRowViewModel row)
-            OpenViewer(row);
+        if (sender is not FrameworkElement fe) return;
+        if (fe.DataContext is not HistoricoRowViewModel row) return;
+        OpenHistoricoViewer(row);
     }
 
     private void OnCopyPlateClick(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is HistoricoRowViewModel row
-            && !string.IsNullOrEmpty(row.Plate) && row.Plate != "—")
-        {
-            try { Clipboard.SetText(row.Plate); } catch { /* ignore */ }
-        }
+        if (sender is not FrameworkElement fe) return;
+        if (fe.DataContext is not HistoricoRowViewModel row) return;
+        try { Clipboard.SetText(row.Record.MatriculaLeida ?? ""); } catch { }
     }
 
-    private void OpenViewerForCurrentSelection()
+    private async void OnThumbnailLoaded(object sender, RoutedEventArgs e)
     {
-        if (DataContext is MainViewModel vm && vm.SelectedRow is { } row)
-            OpenViewer(row);
+        if (sender is not FrameworkElement fe) return;
+        if (fe.DataContext is not HistoricoRowViewModel row) return;
+        try { await row.EnsureThumbnailsAsync(); } catch { }
     }
 
-    private void OpenViewer(HistoricoRowViewModel row)
+    private void OpenHistoricoViewer(HistoricoRowViewModel row)
     {
-        if (!row.HasAnyImage) return;
-        var vm = new ImageViewerViewModel(row.Record, App.ImageCache);
+        var vm = new ImageViewerViewModel(row.Record, App.ImageCache, App.PresenteImages);
         var win = new ImageViewerWindow
         {
-            Owner = this,
             DataContext = vm,
+            Owner = this,
         };
-        _ = vm.LoadCurrentAsync();
+        win.Loaded += async (_, _) =>
+        {
+            try { await vm.LoadAllAsync(); } catch { }
+        };
         win.Show();
     }
 
-    private static T? FindAncestor<T>(DependencyObject? d) where T : DependencyObject
+    // ─────── PRESENTES row handlers ───────
+    private void OnPresenteRowDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        while (d is not null)
+        if (DataContext is not MainViewModel vm) return;
+        if (vm.SelectedPresente is null) return;
+        OpenPresenteViewer(vm.SelectedPresente);
+    }
+
+    private void OnOpenPresenteViewerClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe) return;
+        if (fe.DataContext is not PresenteRowViewModel row) return;
+        OpenPresenteViewer(row);
+    }
+
+    private void OnCopyPresentePlateClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe) return;
+        if (fe.DataContext is not PresenteRowViewModel row) return;
+        try { Clipboard.SetText(row.Record.MatriculaEntrada ?? ""); } catch { }
+    }
+
+    private async void OnPresenteThumbnailLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe) return;
+        if (fe.DataContext is not PresenteRowViewModel row) return;
+        try { await row.EnsureThumbnailsAsync(); } catch { }
+    }
+
+    private void OpenPresenteViewer(PresenteRowViewModel row)
+    {
+        var vm = new ImageViewerViewModel(row.Record, App.ImageCache, App.PresenteImages);
+        var win = new ImageViewerWindow
         {
-            if (d is T t) return t;
-            d = System.Windows.Media.VisualTreeHelper.GetParent(d);
-        }
-        return null;
+            DataContext = vm,
+            Owner = this,
+        };
+        win.Loaded += async (_, _) =>
+        {
+            try { await vm.LoadAllAsync(); } catch { }
+        };
+        win.Show();
     }
 }

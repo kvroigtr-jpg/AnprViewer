@@ -2,66 +2,37 @@ using System;
 
 namespace AnprViewer.Models;
 
-/// <summary>Filtros aplicables al listado HISTORICO. Todos opcionales.</summary>
+/// <summary>
+/// Filtros de búsqueda para HISTORICO y PRESENTES.
+///
+/// Notas de evolución:
+///  · <see cref="TipoTerminal"/> sustituye al antiguo filtro textual "Movimiento".
+///    Equivalencia: 0 = Entrada, 1 = Salida, 2 = Paso (columna TipoTerminal).
+///  · <see cref="Terminal"/> ahora filtra por DescTerminal EXACTO (no LIKE),
+///    porque sus valores se cargan dinámicamente de la propia BD.
+///  · <see cref="From"/> / <see cref="To"/> son DateTime completos (con hora,
+///    minutos y segundos), de modo que el rango es preciso al segundo.
+/// </summary>
 public sealed class QueryFilters
 {
-    public string?   Plate    { get; set; }
-    public DateTime? From     { get; set; }
-    public DateTime? To       { get; set; }
-    public string?   Type     { get; set; }
-    public string?   Terminal { get; set; }
-    public float     MinConf  { get; set; }
-}
+    /// <summary>Matrícula (búsqueda parcial LIKE).</summary>
+    public string? Plate { get; set; }
 
-/// <summary>
-/// Parámetros de conexión a SQL Server.
-/// Soporta autenticación SQL y autenticación integrada de Windows.
-/// </summary>
-public sealed class ConnectionSettings
-{
-    public string Server        { get; set; } = "localhost";
-    public int?   Port          { get; set; } = 1433;
-    public string? InstanceName { get; set; }
-    public string Database      { get; set; } = "";
+    /// <summary>Fecha/hora inicio inclusiva (con segundos).</summary>
+    public DateTime? From { get; set; }
 
-    /// <summary>true → Windows Auth · false → user/password</summary>
-    public bool   IntegratedSecurity { get; set; }
-    public string Username { get; set; } = "";
+    /// <summary>Fecha/hora fin inclusiva (con segundos).</summary>
+    public DateTime? To { get; set; }
 
-    /// <summary>Solo en memoria; no persistir en disco en producción.</summary>
-    public string Password { get; set; } = "";
+    /// <summary>
+    /// Tipo de terminal: 0 = Entrada, 1 = Salida, 2 = Paso.
+    /// null = sin filtro de movimiento.
+    /// </summary>
+    public int? TipoTerminal { get; set; }
 
-    public bool TrustServerCertificate { get; set; } = true;
-    public bool Encrypt                { get; set; }
+    /// <summary>DescTerminal EXACTO (valor seleccionado del desplegable dinámico).</summary>
+    public string? Terminal { get; set; }
 
-    public int ConnectTimeoutSeconds { get; set; } = 15;
-    public int CommandTimeoutSeconds { get; set; } = 60;
-
-    /// <summary>Construye la cadena de conexión sin filtrar la contraseña en logs.</summary>
-    public string ToConnectionString()
-    {
-        var b = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder
-        {
-            DataSource = string.IsNullOrWhiteSpace(InstanceName)
-                ? (Port.HasValue ? $"{Server},{Port.Value}" : Server)
-                : $"{Server}\\{InstanceName}",
-            InitialCatalog          = Database,
-            TrustServerCertificate  = TrustServerCertificate,
-            Encrypt                 = Encrypt,
-            ConnectTimeout          = ConnectTimeoutSeconds,
-            ApplicationName         = "ANPR Viewer",
-            MultipleActiveResultSets = true,
-        };
-
-        if (IntegratedSecurity)
-        {
-            b.IntegratedSecurity = true;
-        }
-        else
-        {
-            b.UserID   = Username;
-            b.Password = Password;
-        }
-        return b.ConnectionString;
-    }
+    /// <summary>Fiabilidad mínima (0-100).</summary>
+    public float MinConf { get; set; }
 }

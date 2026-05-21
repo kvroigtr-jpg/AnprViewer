@@ -13,9 +13,14 @@ namespace AnprViewer.Services;
 
 /// <summary>
 /// Acceso a datos contra SQL Server usando Dapper.
-/// Las queries son idénticas en lógica al backend Node.js: pagination
-/// server-side con OFFSET/FETCH, JOIN con DEF_TIPO_MOVIMIENTO y DEF_TIPO_TERMINAL,
-/// y DATALENGTH() para saber si existen las imágenes sin transferir los blobs.
+/// Pagination server-side con OFFSET/FETCH, JOIN con DEF_TIPO_MOVIMIENTO y
+/// DEF_TIPO_TERMINAL, y DATALENGTH() para saber si existen las imágenes sin
+/// transferir los blobs.
+///
+/// NOTA de filtros (alineado con QueryFilters actual):
+///   · @TipoTerminal (int?): 0=Entrada, 1=Salida, 2=Paso (sustituye al antiguo @Type textual).
+///   · @Terminal (string): DescTerminal EXACTO (sustituye al LIKE sobre ter.Descripcion).
+///   · @From / @To: DateTime completos (con hora/min/seg).
 /// </summary>
 public sealed class SqlServerDatabaseService : IDatabaseService
 {
@@ -58,12 +63,12 @@ public sealed class SqlServerDatabaseService : IDatabaseService
     LEFT JOIN DEF_TIPO_MOVIMIENTO mov WITH (NOLOCK) ON h.TipoMovimiento = mov.TipoMovimiento
     LEFT JOIN DEF_TIPO_TERMINAL   ter WITH (NOLOCK) ON h.TipoTerminal   = ter.TipoTerminal
     WHERE
-          (@Plate    IS NULL OR h.MatriculaLeida LIKE '%' + @Plate + '%')
-      AND (@From     IS NULL OR h.FHGeneracion >= @From)
-      AND (@To       IS NULL OR h.FHGeneracion <= @To)
-      AND (@MinConf  = 0     OR h.FiabilidadMatricula >= @MinConf)
-      AND (@Type     IS NULL OR mov.Descripcion LIKE '%' + @Type + '%')
-      AND (@Terminal IS NULL OR ter.Descripcion LIKE '%' + @Terminal + '%')
+          (@Plate        IS NULL OR h.MatriculaLeida LIKE '%' + @Plate + '%')
+      AND (@From         IS NULL OR h.FHGeneracion >= @From)
+      AND (@To           IS NULL OR h.FHGeneracion <= @To)
+      AND (@MinConf      = 0     OR h.FiabilidadMatricula >= @MinConf)
+      AND (@TipoTerminal IS NULL OR h.TipoTerminal = @TipoTerminal)
+      AND (@Terminal     IS NULL OR h.DescTerminal = @Terminal)
 )
 SELECT
     h.NumeroLinea, h.CodigoAparcamiento, h.NumeroTerminal,
@@ -92,24 +97,24 @@ FROM HISTORICO h WITH (NOLOCK)
 LEFT JOIN DEF_TIPO_MOVIMIENTO mov WITH (NOLOCK) ON h.TipoMovimiento = mov.TipoMovimiento
 LEFT JOIN DEF_TIPO_TERMINAL   ter WITH (NOLOCK) ON h.TipoTerminal   = ter.TipoTerminal
 WHERE
-      (@Plate    IS NULL OR h.MatriculaLeida LIKE '%' + @Plate + '%')
-  AND (@From     IS NULL OR h.FHGeneracion >= @From)
-  AND (@To       IS NULL OR h.FHGeneracion <= @To)
-  AND (@MinConf  = 0     OR h.FiabilidadMatricula >= @MinConf)
-  AND (@Type     IS NULL OR mov.Descripcion LIKE '%' + @Type + '%')
-  AND (@Terminal IS NULL OR ter.Descripcion LIKE '%' + @Terminal + '%');
+      (@Plate        IS NULL OR h.MatriculaLeida LIKE '%' + @Plate + '%')
+  AND (@From         IS NULL OR h.FHGeneracion >= @From)
+  AND (@To           IS NULL OR h.FHGeneracion <= @To)
+  AND (@MinConf      = 0     OR h.FiabilidadMatricula >= @MinConf)
+  AND (@TipoTerminal IS NULL OR h.TipoTerminal = @TipoTerminal)
+  AND (@Terminal     IS NULL OR h.DescTerminal = @Terminal);
 ";
 
         var parameters = new
         {
-            Plate    = NullIfBlank(filters.Plate),
-            From     = filters.From,
-            To       = filters.To,
-            Type     = NullIfBlank(filters.Type),
-            Terminal = NullIfBlank(filters.Terminal),
-            MinConf  = filters.MinConf,
-            Offset   = offset,
-            PageSize = pageSize,
+            Plate        = NullIfBlank(filters.Plate),
+            From         = filters.From,
+            To           = filters.To,
+            TipoTerminal = filters.TipoTerminal,                 // int? : 0=Entrada,1=Salida,2=Paso
+            Terminal     = NullIfBlank(filters.Terminal),        // DescTerminal exacto
+            MinConf      = filters.MinConf,
+            Offset       = offset,
+            PageSize     = pageSize,
         };
 
         await using var con = new SqlConnection(_connectionString);

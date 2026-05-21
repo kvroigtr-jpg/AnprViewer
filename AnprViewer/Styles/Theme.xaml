@@ -1,6 +1,7 @@
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options">
 
     <!-- ═══════════════ TOKENS DE COLOR ═══════════════ -->
     <Color x:Key="Bg0Color">#FF0A0D12</Color>
@@ -24,19 +25,21 @@
     <Color x:Key="ErrColor">#FFFF6B6B</Color>
     <Color x:Key="InfoColor">#FF5CB8F5</Color>
 
-    <SolidColorBrush x:Key="Bg0"        Color="{StaticResource Bg0Color}"/>
-    <SolidColorBrush x:Key="Bg1"        Color="{StaticResource Bg1Color}"/>
-    <SolidColorBrush x:Key="Bg2"        Color="{StaticResource Bg2Color}"/>
-    <SolidColorBrush x:Key="Bg3"        Color="{StaticResource Bg3Color}"/>
-    <SolidColorBrush x:Key="BgHover"    Color="{StaticResource BgHoverColor}"/>
-    <SolidColorBrush x:Key="Line"       Color="{StaticResource LineColor}"/>
-    <SolidColorBrush x:Key="LineSoft"   Color="{StaticResource LineSoftColor}"/>
+    <!-- Brushes MUTABLES (cambian con el tema) -->
+    <SolidColorBrush x:Key="Bg0"      po:Freeze="False" Color="{StaticResource Bg0Color}"/>
+    <SolidColorBrush x:Key="Bg1"      po:Freeze="False" Color="{StaticResource Bg1Color}"/>
+    <SolidColorBrush x:Key="Bg2"      po:Freeze="False" Color="{StaticResource Bg2Color}"/>
+    <SolidColorBrush x:Key="Bg3"      po:Freeze="False" Color="{StaticResource Bg3Color}"/>
+    <SolidColorBrush x:Key="BgHover"  po:Freeze="False" Color="{StaticResource BgHoverColor}"/>
+    <SolidColorBrush x:Key="Line"     po:Freeze="False" Color="{StaticResource LineColor}"/>
+    <SolidColorBrush x:Key="LineSoft" po:Freeze="False" Color="{StaticResource LineSoftColor}"/>
 
-    <SolidColorBrush x:Key="Text0"      Color="{StaticResource Text0Color}"/>
-    <SolidColorBrush x:Key="Text1"      Color="{StaticResource Text1Color}"/>
-    <SolidColorBrush x:Key="Text2"      Color="{StaticResource Text2Color}"/>
-    <SolidColorBrush x:Key="Text3"      Color="{StaticResource Text3Color}"/>
+    <SolidColorBrush x:Key="Text0"    po:Freeze="False" Color="{StaticResource Text0Color}"/>
+    <SolidColorBrush x:Key="Text1"    po:Freeze="False" Color="{StaticResource Text1Color}"/>
+    <SolidColorBrush x:Key="Text2"    po:Freeze="False" Color="{StaticResource Text2Color}"/>
+    <SolidColorBrush x:Key="Text3"    po:Freeze="False" Color="{StaticResource Text3Color}"/>
 
+    <!-- Brushes de acento -->
     <SolidColorBrush x:Key="Accent"     Color="{StaticResource AccentColor}"/>
     <SolidColorBrush x:Key="AccentDim"  Color="{StaticResource AccentDimColor}"/>
     <SolidColorBrush x:Key="AccentBg"   Color="#1A5CF5D3"/>
@@ -56,8 +59,8 @@
 
     <!-- ═══════════════ ESTILOS BASE ═══════════════ -->
     <Style TargetType="Window">
-        <Setter Property="Background"       Value="{StaticResource Bg0}"/>
-        <Setter Property="Foreground"       Value="{StaticResource Text0}"/>
+        <Setter Property="Background"       Value="{DynamicResource Bg0}"/>
+        <Setter Property="Foreground"       Value="{DynamicResource Text0}"/>
         <Setter Property="FontFamily"       Value="{StaticResource FontUI}"/>
         <Setter Property="FontSize"         Value="13"/>
         <Setter Property="UseLayoutRounding" Value="True"/>
@@ -65,7 +68,7 @@
     </Style>
 
     <Style TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{StaticResource Text1}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Text1}"/>
         <Setter Property="FontFamily" Value="{StaticResource FontUI}"/>
     </Style>
 
